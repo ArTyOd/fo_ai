@@ -4,6 +4,8 @@ from ai_main import load_index, answer_question, clear_chat_history  # Import cl
 import json 
 import pinecone
 import pandas as pd
+from google.oauth2 import service_account
+from google.cloud import storage
 
 pinecone_api_key = st.secrets["PINECONE_API_KEY"]
 pinecone_environment = st.secrets["PINECONE_environment"]
@@ -18,22 +20,53 @@ openai.api_key = openai_api_key
 index = load_index()
 updated_stream = ""
 
+# Create API client for Google Cloud Storage
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"]
+)
+client = storage.Client(credentials=credentials)
 
-def load_unique_categories():
-    with open("data/unique_categories.json", "r") as f:
-        return json.load(f)
+# Bucket name and file path
+bucket_name = "bucket_g_cloud_service_1"
 
-unique_categories = load_unique_categories()
+def load_from_gcs(bucket_name, file_path):
+    """Load a file from Google Cloud Storage."""
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(file_path)
+    content = blob.download_as_text()  # or use download_as_bytes for binary files
+    return json.loads(content)
 
-def load_instructions():
-    with open("data/instructions.json", "r") as f:
-        return json.load(f)
+def save_to_gcs(bucket_name, file_path, content):
+    """Save a file to Google Cloud Storage."""
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(file_path)
+    content = json.dumps(content)
+    blob.upload_from_string(content, content_type="application/json")
 
-instructions = load_instructions()
+unique_categories_file_path = "fo/unique_categories.json"
+instructions_file_path = "fo/instructions.json"
 
-def save_instructions(instructions):
-    with open("data/instructions.json", "w") as f:
-        json.dump(instructions, f, indent=2)
+# Load unique categories from GCS
+unique_categories = load_from_gcs(bucket_name, unique_categories_file_path)
+
+# Load instructions from GCS
+instructions = load_from_gcs(bucket_name, instructions_file_path)
+
+# def load_unique_categories():
+#     with open("data/unique_categories.json", "r") as f:
+#         return json.load(f)
+
+# unique_categories = load_unique_categories()
+
+# def load_instructions():
+#     with open("data/instructions.json", "r") as f:
+#         return json.load(f)
+
+# instructions = load_instructions()
+
+# def save_instructions(instructions):
+#     with open("data/instructions.json", "w") as f:
+#         json.dump(instructions, f, indent=2)
 
 def app():
     st.title("Felgenoutlet Assistant")
@@ -65,9 +98,9 @@ def app():
         
     st.sidebar.write(f"Selected model: {st.session_state.selected_model}")
     max_token_question = st.sidebar.number_input("Max tokens (question):", min_value=1, value=1500)
-    max_token_answer = st.sidebar.number_input("Max tokens (answer):", min_value=1, value=250)
+    max_token_answer = st.sidebar.number_input("Max tokens (answer):", min_value=1, value=500)
     temperature = st.sidebar.slider("Temperature:", min_value=0.0, max_value=2.0, value=0.3)
-    reframing = st.sidebar.checkbox("Enable reframing questions", value=True)
+    reframing = st.sidebar.checkbox("Enable reframing questions", value=False)
 
     # Add a separator
     st.sidebar.markdown("<hr style='height: 1px; border: none; background-color: gray; margin-left: -20px; margin-right: -20px;'>", unsafe_allow_html=True)
@@ -88,13 +121,14 @@ def app():
         # Move the instruction edit fields above the categories
         edit_instructions = st.checkbox("Edit instructions")
         if edit_instructions:
+            print(bucket_name, instructions_file_path)
             instruction_key = st.selectbox("Instruction key:", list(instructions.keys()), index=0)  # Change to selectbox
             instruction_value = st.text_area("Instruction value:", value=instructions[instruction_key])  # Add value
     
             # Add this code snippet
             button_row = st.columns(2)
             with button_row[0]:
-                add_button = st.button("Update")
+                update_button = st.button("Update")
             with button_row[1]:
                 delete_button = st.button("Delete")
 
@@ -103,12 +137,12 @@ def app():
             add_button = st.button("Add")  # Add button for adding new instruction
             
 
-            if add_button:
+            if update_button:
                 instructions[instruction_key] = instruction_value
-                save_instructions(instructions)
+                save_to_gcs(bucket_name, instructions_file_path, instructions)
             if delete_button and instruction_key in instructions:
                 del instructions[instruction_key]
-                save_instructions(instructions)
+                save_to_gcs(bucket_name, instructions_file_path, instructions)
         
         checked_categories = get_checked_categories(unique_categories)
 
@@ -185,7 +219,7 @@ def display_stream_answer(r_text, placeholder_response):
     global updated_stream 
     stream_text = ""
     updated_stream += r_text
-    stream_text += f'<div style="background-color: #0d1116; margin: 0; padding: 10px;"> assistant: {updated_stream}</div>'
+    stream_text += f'<div style="background-color: #0d1116; margin: 0; padding: 10px;">{updated_stream}</div>'
     placeholder_response.markdown(stream_text, unsafe_allow_html=True)
 
 
@@ -193,9 +227,9 @@ def display_chat(chat_history, chat_container):
     chat_text = ""
     for entry in reversed(chat_history):
         if entry['role'] == "user":
-            chat_text += f'<div style="background-color: #262730 ; margin: 0; padding: 10px;">{entry["role"]}: {entry["content"]}</div>'
+            chat_text += f'<div style="background-color: #262730 ; margin: 0; padding: 10px;">{entry["content"]}</div>'
         else:
-            chat_text += f'<div style="background-color: #0d1116; margin: 0; padding: 10px;">{entry["role"]}: {entry["content"]}</div>'
+            chat_text += f'<div style="background-color: #0d1116; margin: 0; padding: 10px;">{entry["content"]}</div>'
     chat_container.write(f"""
     <div id="chatBox" style="height: 300px; overflow-y: scroll; ">
         {chat_text}
