@@ -121,7 +121,6 @@ def app():
         # Move the instruction edit fields above the categories
         edit_instructions = st.checkbox("Edit instructions")
         if edit_instructions:
-            print(bucket_name, instructions_file_path)
             instruction_key = st.selectbox("Instruction key:", list(instructions.keys()), index=0)  # Change to selectbox
             instruction_value = st.text_area("Instruction value:", value=instructions[instruction_key])  # Add value
     
@@ -140,9 +139,24 @@ def app():
             if update_button:
                 instructions[instruction_key] = instruction_value
                 save_to_gcs(bucket_name, instructions_file_path, instructions)
+                st.success(f"Updated instruction: {instruction_key}")
+                st.experimental_rerun()
+
             if delete_button and instruction_key in instructions:
                 del instructions[instruction_key]
                 save_to_gcs(bucket_name, instructions_file_path, instructions)
+                st.success(f"Deleted instruction: {instruction_key}")
+                st.experimental_rerun()
+
+            if add_button:
+                if add_new_key and add_new_value:  # Check if the new instruction key and value are not empty
+                    instructions[add_new_key] = add_new_value
+                    save_to_gcs(bucket_name, instructions_file_path, instructions)
+                    st.success(f"Added new instruction: {add_new_key}")
+                    st.experimental_rerun()
+                else:
+                    st.warning("Please provide both a key and a value for the new instruction.")
+
         
         checked_categories = get_checked_categories(unique_categories)
 
