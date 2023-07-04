@@ -118,13 +118,13 @@ def app():
     with search_options_expander:
         selected_instruction = st.radio("Instructions", list(instructions.keys()))
         
-        # Move the instruction edit fields above the categories
+        
         edit_instructions = st.checkbox("Edit instructions")
         if edit_instructions:
             instruction_key = st.selectbox("Instruction key:", list(instructions.keys()), index=0)  # Change to selectbox
             instruction_value = st.text_area("Instruction value:", value=instructions[instruction_key])  # Add value
     
-            # Add this code snippet
+            
             button_row = st.columns(2)
             with button_row[0]:
                 update_button = st.button("Update")
