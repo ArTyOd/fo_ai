@@ -85,7 +85,6 @@ def processing_request():
                 debug=False,
                 df_requests=st.session_state.df_requests,
                 df_rim_details=st.session_state.df_rim_details,
-                df_all_rims=st.session_state.df_all_rims,
                 index=pinecone_index,
             )
             question = st.session_state.temp_df_requests.iloc[0]["question"]

@@ -520,7 +520,6 @@ def context_retrieval_entry(
     text: str,
     df_requests: pd.DataFrame,
     df_rim_details: pd.DataFrame,
-    df_all_rims: pd.DataFrame,
     index,
     instruction: Optional[Dict] = None,
     debug: bool = False,
