@@ -92,7 +92,7 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0301"):
   See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
 
 
-def create_context(question,index, max_len=1500, size="ada"):
+def create_context1(question,index, max_len=1500, size="ada"):
     """
     Create a context for a question by finding the most similar context from the Pinecone index
     """
@@ -134,6 +134,71 @@ def create_context(question,index, max_len=1500, size="ada"):
     print(f"How much Contexts found: {len(returns)} \n----------------\n ")
     # Return the context and context_details
     return "\n\n###\n\n".join(returns), context_details
+
+
+import json
+
+def create_context(question, index, max_len=1500, size="ada"):
+    """
+    Create a context for a question by finding the most similar context from the Pinecone index.
+    Also adds specific details from result.json as additional context.
+    """
+    
+    # Load JSON data from result.json
+    with open('data/result.json', 'r') as f:
+        json_data = json.load(f)
+        
+    # Initialize the context and details
+    returns = []
+    context_details = []
+    cur_len = 0
+    
+    # Dynamically iterate through each category in the JSON data and format it as a string
+    for category, details in json_data.items():
+        details_str = "\n".join([f"{key}: {value}" for key, value in details.items()])
+        returns.append(f"{category.capitalize()} Details:\n{details_str}")
+        
+        # # Update the current length
+        # cur_len += len(details_str) + len(category) + 11  # Length of " Details:\n" is 11
+    
+    # Get the embeddings for the question
+    q_embed = openai.Embedding.create(input=question, engine='text-embedding-ada-002')['data'][0]['embedding']
+    
+    # Query Pinecone index
+    res = index.query(q_embed, top_k=5, include_metadata=True)
+    
+    # Iterate through results, sorted by score (ascending), and add the text to the context until it is too long
+    for match in sorted(res['matches'], key=lambda x: x['score']):
+        # Get the length of the text
+        text_len = match['metadata']['n_tokens']
+        
+        # Add the length of the text to the current length
+        cur_len += text_len + 4  # 4 for "\n\n###\n\n" separators
+        
+        # If the context is too long, break
+        if cur_len > max_len:
+            break
+        
+        # Else, add it to the text that is being returned
+        returns.append(match['metadata']['content'])
+        
+        # Add the context information to the context_details list
+        context_details.append({
+            'score': match['score'],
+            'category': match['metadata'].get('category'),
+            'topic': match['metadata'].get('topic'),
+            'question': match['metadata'].get('question'),
+            'url': match['metadata'].get('url'),
+            'token': match['metadata'].get('n_tokens'),
+        })
+        print(f"{context_details =}")
+
+    print(f"How many Contexts found: {len(returns)} \n----------------\n ")
+    
+    # Return the context and context_details
+    return "\n\n###\n\n".join(returns), context_details
+
+
 
 
 def fallback_reframe_question(messages, original_question, model="gpt-3.5-turbo", temperature=0.3, max_tokens=100):
