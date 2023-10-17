@@ -106,8 +106,8 @@ def processing_request():
             st.dataframe(pd.DataFrame(specific_context), use_container_width=True)
             st.write("And of course the general context, regarding the request...")
 
-            st.session_state.temp_df_requests = serialize_all_columns(st.session_state.temp_df_requests)
-            st.session_state.temp_df_rim_details = serialize_all_columns(st.session_state.temp_df_rim_details)
+            # st.session_state.temp_df_requests = serialize_all_columns(st.session_state.temp_df_requests)
+            # st.session_state.temp_df_rim_details = serialize_all_columns(st.session_state.temp_df_rim_details)
         else:
             st.session_state.temp_df_requests = pd.DataFrame(columns=st.session_state.df_requests.columns)
             st.session_state.temp_df_rim_details = pd.DataFrame(columns=st.session_state.df_rim_details.columns)
@@ -255,23 +255,58 @@ def display_feedback():
                 "tag": feedback_tag,
                 "helpful": helpful,
                 "ticket": ticket,
-                "tokens_used": [
-                    st.session_state.prompt_tokens,
-                    st.session_state.completion_tokens,
-                    st.session_state.total_tokens,
-                ],
-                "model_parameters": [
-                    st.session_state.selected_model,
-                    st.session_state.max_token_question,
-                    st.session_state.max_token_answer,
-                    st.session_state.temperature,
-                ],
+                # "tokens_used": [
+                #     st.session_state.prompt_tokens,
+                #     st.session_state.completion_tokens,
+                #     st.session_state.total_tokens,
+                # ],
+                # "model_parameters": [
+                #     st.session_state.selected_model,
+                #     st.session_state.max_token_question,
+                #     st.session_state.max_token_answer,
+                #     st.session_state.temperature,
+                # ],
             }
 
-            send_feedback = st.form_submit_button("Send Feedback", on_click=update_feedback_info)
+            send_feedback = st.form_submit_button("Send Feedback")
 
         if send_feedback:
-            st.success("Feedback sent successfully! 2")
+            # st.success("Feedback sent successfully! 2")
+            update_dict = {
+                "date": timestamp,
+                "correct_response": correct_response,
+                "comment": comment,
+                "tag": feedback_tag,
+                "helpful": helpful,
+                "ticket": ticket,
+                # "tokens_used": [
+                #     st.session_state.prompt_tokens,
+                #     st.session_state.completion_tokens,
+                #     st.session_state.total_tokens,
+                # ],
+                # "model_parameters": [
+                #     st.session_state.selected_model,
+                #     st.session_state.max_token_question,
+                #     st.session_state.max_token_answer,
+                #     st.session_state.temperature,
+                # ],
+            }
+            last_index = st.session_state.df_requests.index.max()
+
+            for column, value in update_dict.items():
+                st.session_state.df_requests.at[last_index, column] = value  # Moved this line inside the loop
+                print(st.session_state.df_requests.at[last_index, column])
+                print(value, column)
+
+            save_to_gcs(
+                bucket_name,
+                st.session_state.df_file_paths["df_requests"],
+                st.session_state.df_requests.to_json(orient="split"),
+            )
+
+            st.success("Feedback sent successfully!...")
+            st.session_state.phase = 1
+            st.rerun()
 
 
 def update_feedback_info():

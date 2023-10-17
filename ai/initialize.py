@@ -31,6 +31,8 @@ def initialize_dataframe(bucket_name: str, file_path: str, columns: List[str], d
     if blob.exists():
         content = blob.download_as_text()
         df = pd.read_json(content, orient="split")
+        for col, dtype in dtypes.items():
+            df[col] = df[col].astype(dtype)
     else:
         df = pd.DataFrame(columns=columns)
         if dtypes:

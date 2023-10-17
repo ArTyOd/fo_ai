@@ -72,8 +72,8 @@
             "breite": "float64",
             "einpresstiefe": "float64",
             "nabe": "float64",
-            "traglast": "float64",
-            "gewicht": "float64",
+            "traglast": "str",
+            "gewicht": "str",
             "hersteller_design_mapped": "object",
             "rim_details_system": "object",
             "mapping_information": "object"
@@ -108,8 +108,8 @@
             "breite": "float64",
             "einpresstiefe": "float64",
             "nabe": "float64",
-            "traglast": "float64",
-            "gewicht": "float64",
+            "traglast": "str",
+            "gewicht": "str",
             "lieferbar": "object",
             "hd_combined": "object",
             "hd_emb_combined": "object"
