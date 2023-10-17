@@ -79,7 +79,8 @@ def initialize_all_dataframes(bucket_name: str, folder_path: str, config_file_na
         file_path = f"{folder_path}/{df_name}.json"
 
         if df_name == "df_all_rims":
-            initialized_dfs[df_name] = initialize_dataframe_cache(bucket_name, file_path, columns, dtypes)
+            continue
+            # initialized_dfs[df_name] = initialize_dataframe_cache(bucket_name, file_path, columns, dtypes)
         else:
             initialized_dfs[df_name] = initialize_dataframe(bucket_name, file_path, columns, dtypes)
 
