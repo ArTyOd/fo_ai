@@ -156,7 +156,7 @@ def get_rim_details_for_question(question: str, instruction: str, debug: bool = 
     return extract_rim_details_from_response(response)
 
 
-def map_similar_rims(
+def map_similar_rims1(
     question: str,
     df_all_rims_or_path: Union[pd.DataFrame, str],
     max_len: int = 1200,
@@ -222,6 +222,54 @@ def map_similar_rims(
     return contexts
 
 
+def map_similar_rims(
+    question: str,
+    index,
+    filter_query,
+    engine_name: str = "text-embedding-ada-002",
+    limit: int = 5,
+    threshold: float = 0.95,
+    max_len: int = 1200,
+    context_fields: List[str] = ["hersteller", "design"],
+    detail_fields: List[str] = ["similarity"],
+) -> Tuple[List[Dict[str, Union[str, float]]], List[Dict[str, float]]]:
+    """
+    Create a context for a question by finding the most similar rims from a Pinecone index.
+
+    Parameters:
+        question (str): The question to map.
+        index: Pinecone index.
+        ...
+
+    Returns:
+        Tuple[List[Dict[str, Union[str, float]]], List[Dict[str, float]]]: Returns contexts and their details.
+    """
+    # Get the embeddings for the question
+    q_embed = openai.Embedding.create(input=question, engine=engine_name)["data"][0]["embedding"]
+
+    # Query Pinecone index
+    res = index.query(q_embed, filter=filter_query, top_k=limit, include_metadata=True)
+    # res = index.query(q_embed, top_k=limit, include_metadata=True)
+
+    contexts, context_details = [], []
+
+    for match in sorted(res["matches"], key=lambda x: x["score"], reverse=True):
+        # Check for threshold
+        if match["score"] < threshold:
+            break
+
+        # Extract metadata
+        metadata = match["metadata"]
+
+        context_data = {field: metadata.get(field, "") for field in context_fields}
+        contexts.append(context_data)
+
+        detail_data = {field: match["score"] for field in detail_fields}
+        context_details.append(detail_data)
+
+    return contexts
+
+
 from typing import Union, List, Dict, Optional
 import pandas as pd
 
@@ -253,7 +301,9 @@ def extract_vehicle_related_details(row: Dict[str, Union[str, float]]) -> Option
         Optional[str]: The formatted string containing the vehicle-related details, or None if an error occurs.
     """
     try:
-        return f"Lochkreise: {row.get('lochkreise', '')}; Einpresstiefe: {row.get('einpresstiefe', '')}; Nabe: {row.get('nabe', '')}"
+        result = f"Lochkreise: {row.get('lochkreise', '')}; Einpresstiefe: {row.get('einpresstiefe', '')}; Nabe: {row.get('nabe', '')}"
+        print(f"extract_vehicle_related_details: {result =}")
+        return result
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
@@ -341,6 +391,7 @@ def filter_dataframe(
     else:
         df_all_rims = pd.read_pickle(rims_df_or_path)
 
+    row.to_pickle("data/test_row.pkl")
     hersteller_design_mapped = row["hersteller_design_mapped"][limit:]
     filtered_df = pd.DataFrame()
 
@@ -405,11 +456,72 @@ def fetch_and_update(row: pd.Series) -> Union[Dict[str, Any], None]:
     return None
 
 
+def create_filter_query(hd: List[Dict[str, str]], zoll: Optional[str] = None) -> Dict:
+    """
+    Create a MongoDB filter query based on the input list of dictionaries containing 'hersteller', 'design', and 'zoll'.
+
+    Parameters:
+        hd (List[Dict[str, str]]): A list of dictionaries, each containing 'hersteller' and 'design' fields.
+        zoll (Optional[str]): The zoll value as a string. Default is None.
+
+    Returns:
+        Dict: A MongoDB filter query.
+    """
+
+    filter_query = {"$and": [{"category": "vehicle rim"}]}
+
+    for item in hd:
+        hersteller_value = item.get("hersteller", "")
+        design_value = item.get("design", "")
+
+        if hersteller_value:
+            filter_query["$and"].append({"hersteller": hersteller_value})
+
+        if design_value:
+            filter_query["$and"].append({"design": design_value})
+
+    if zoll:
+        filter_query["$and"].append({"zoll": zoll})
+
+    return filter_query
+
+
+def filter_rim_details(columns_to_match: List[str], row: Dict[str, any]) -> List[Dict[str, any]]:
+    """
+    Filter a list of rim details based on specified columns and values.
+
+    Parameters:
+        columns_to_match (List[str]): List of columns to filter by.
+        row (Dict[str, Any]): Dictionary containing values to match for each specified column.
+
+    Returns:
+        List[Dict[str, Any]]: Filtered list of dictionaries containing rim details.
+    """
+    # Convert the list of dictionaries to a DataFrame
+    rim_details = row["rim_details_system"]
+
+    df = pd.DataFrame(rim_details)
+
+    # Iterate through the specified columns to apply filtering
+    for column in columns_to_match:
+        value_to_match = row.get(column, "nan")
+
+        if value_to_match != "nan":
+            temp_filtered = df[df[column].str.contains(str(value_to_match), case=False, na=False)]
+
+            if not temp_filtered.empty:
+                df = temp_filtered
+
+    # Convert the filtered DataFrame back to a list of dictionaries
+    return df.to_dict("records")
+
+
 def context_retrieval_entry(
     text: str,
     df_requests: pd.DataFrame,
     df_rim_details: pd.DataFrame,
     df_all_rims: pd.DataFrame,
+    index,
     instruction: Optional[Dict] = None,
     debug: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -437,9 +549,9 @@ def context_retrieval_entry(
     temp_df_rim_details["hersteller_design_mapped"] = temp_df_rim_details.apply(
         lambda row: map_similar_rims(
             question=extract_manufacturer_and_design(row),
-            # df_all_rims_or_path=pd.read_pickle("data/df_all_rims.pkl"),
-            df_all_rims_or_path=df_all_rims,
-            emb_col_name="hd emb combined",
+            index=index,
+            filter_query={"category": "hersteller design"},
+            engine_name="text-embedding-ada-002",  # You can replace this with your own engine name
             max_len=1200,
             limit=1,
             threshold=0.85,
@@ -479,17 +591,22 @@ def context_retrieval_entry(
         "einpresstiefe",
         "nabe",
     ]
+
     temp_df_rim_details["rim_details_system"] = temp_df_rim_details.apply(
         lambda row: map_similar_rims(
             question=extract_vehicle_related_details(row),
-            df_all_rims_or_path=filter_dataframe(row, columns_to_match, 0, rims_df_or_path=df_all_rims),
-            emb_col_name="vr emb combined",
-            limit=3,
+            index=index,
+            filter_query=create_filter_query(row["hersteller_design_mapped"], row["zoll"]),
+            engine_name="text-embedding-ada-002",  # You can replace this with your own engine name
+            max_len=1200,
+            limit=30,
+            threshold=0.85,
             context_fields=context_fields,
-            threshold=0.8,
         ),
         axis=1,
     )
+
+    temp_df_rim_details["rim_details_system"] = temp_df_rim_details.apply(lambda row: filter_rim_details(columns_to_match, row), axis=1)
 
     temp_df_rim_details["mapping_information"] = temp_df_rim_details.apply(lambda row: fetch_and_update(row), axis=1)
 
