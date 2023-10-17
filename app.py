@@ -49,7 +49,7 @@ st.session_state.df_file_paths = {df_name: f"{folder_path}/{df_name}.json" for d
 st.session_state.df_requests = dfs["df_requests"]
 st.session_state.df_rim_details = dfs["df_rim_details"]
 # st.session_state.df_all_rims = dfs["df_all_rims"]
-st.session_state.df_all_rims = pd.read_pickle("data/df_all_rims.pkl")
+# st.session_state.df_all_rims = pd.read_pickle("data/df_all_rims.pkl")
 
 
 # initializing st.session.states:
