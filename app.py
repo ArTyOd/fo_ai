@@ -220,10 +220,10 @@ def main():
             display_feedback()
 
     with tab2:
-        st.dataframe(st.session_state.df_requests, use_container_width=True)
+        st.dataframe(st.session_state.df_requests.iloc[::-1], use_container_width=True)
 
     with tab3:
-        st.dataframe(st.session_state.df_rim_details, use_container_width=True)
+        st.dataframe(st.session_state.df_rim_details.iloc[::-1], use_container_width=True)
 
 
 def display_feedback():
