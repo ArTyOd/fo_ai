@@ -27,8 +27,9 @@ updated_stream = ""
 
 pinecone_api_key = st.secrets["PINECONE_API_KEY"]
 pinecone_environment = st.secrets["PINECONE_environment"]
+pinecone_index_name = st.secrets["PINECONE_index_name"]
 pinecone.init(api_key=pinecone_api_key, environment=pinecone_environment)
-pinecone_index = load_index(index_name="fo", pinecone_api_key=pinecone_api_key, pinecone_environment=pinecone_environment)
+pinecone_index = load_index(index_name=pinecone_index_name, pinecone_api_key=pinecone_api_key, pinecone_environment=pinecone_environment)
 
 # Create API client for Google Cloud Storage
 credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
